@@ -1,0 +1,44 @@
+import type { Metadata } from "next";
+import "./globals.css";
+import { WalletProvider } from "@/components/WalletProvider";
+import { ThemeToggle } from "@/components/ThemeToggle";
+
+export const metadata: Metadata = {
+  title: "Nullmeet — Private Meeting Scheduler",
+  description:
+    "Find a common meeting time without revealing your schedule. Built on MagicBlock Private Ephemeral Rollups.",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Prevent flash of wrong theme */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var t = localStorage.getItem('nullmeet-theme');
+                if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="min-h-screen">
+        <WalletProvider>
+          {/* Universal theme toggle — fixed top-right on every page */}
+          <div className="fixed top-4 right-4 z-50">
+            <ThemeToggle />
+          </div>
+          {children}
+        </WalletProvider>
+      </body>
+    </html>
+  );
+}
