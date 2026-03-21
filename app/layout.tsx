@@ -7,6 +7,28 @@ export const metadata: Metadata = {
   title: "Nullmeet — Private Meeting Scheduler",
   description:
     "Find a common meeting time without revealing your schedule. Built on MagicBlock Private Ephemeral Rollups.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "Nullmeet — Private Meeting Scheduler",
+    description:
+      "Find a common meeting time without revealing your schedule. Built on MagicBlock Private Ephemeral Rollups.",
+    images: [{ url: "/nullmeet-og.png", width: 1200, height: 630 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nullmeet — Private Meeting Scheduler",
+    description:
+      "Find a common meeting time without revealing your schedule. Built on MagicBlock Private Ephemeral Rollups.",
+    images: ["/nullmeet-og.png"],
+  },
 };
 
 export default function RootLayout({
