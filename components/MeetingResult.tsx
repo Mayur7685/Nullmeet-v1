@@ -84,7 +84,6 @@ export function MeetingResult({
 
   return (
     <div className="text-center space-y-6">
-      <div className="text-4xl">&#127919;</div>
       <div className="text-2xl font-bold text-[var(--success)]">Meeting Scheduled!</div>
 
       <div className="p-6 bg-[var(--card)] border border-[var(--success)]/30 rounded-xl">
