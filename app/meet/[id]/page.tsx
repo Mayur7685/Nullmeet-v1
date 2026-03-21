@@ -39,6 +39,7 @@ export default function MeetingPage() {
     setupMeetingPermission,
     joinAndSetupGuest,
     authenticateTee,
+    prefetchTeeBlockhash,
     submitSlotsTee,
     computeResultTee,
   } = useNullmeet();
@@ -100,7 +101,7 @@ export default function MeetingPage() {
       delegatingRef.current = true;
       try {
         setStep("delegating");
-        setStatus("Setting up meeting permission...");
+        setStatus("Guest joined! Approve the transaction to set up the private enclave.");
         await setupMeetingPermission(Number(meetingId), guestAddress);
         setStatus("");
         setStep("select-slots");
@@ -115,6 +116,13 @@ export default function MeetingPage() {
 
     setupMeetingPerm();
   }, [isHost, guestJoined, guestAddress, step, meetingId, setupMeetingPermission, setStep]);
+
+  // Prefetch TEE blockhash when entering slot selection so wallet popup is instant
+  useEffect(() => {
+    if (step === "select-slots") {
+      prefetchTeeBlockhash();
+    }
+  }, [step, prefetchTeeBlockhash]);
 
   const handleSubmitSlots = async (slots: number[]) => {
     try {

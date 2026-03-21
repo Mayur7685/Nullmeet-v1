@@ -41,6 +41,7 @@ export function useNullmeet() {
     null
   );
   const teeConnectionRef = useRef<Connection | null>(null);
+  const cachedTeeBlockhashRef = useRef<{ blockhash: string; fetchedAt: number } | null>(null);
 
   const program = useMemo(() => {
     if (!publicKey || !signTransaction || !signAllTransactions) return null;
@@ -75,6 +76,14 @@ export function useNullmeet() {
     [publicKey, signTransaction, connection]
   );
 
+  // Prefetch TEE blockhash so wallet popup appears instantly
+  const prefetchTeeBlockhash = useCallback(async () => {
+    const teeConn = teeConnectionRef.current;
+    if (!teeConn) return;
+    const { blockhash } = await teeConn.getLatestBlockhash();
+    cachedTeeBlockhashRef.current = { blockhash, fetchedAt: Date.now() };
+  }, []);
+
   // Helper: sign and send a transaction on TEE
   const signAndSendTee = useCallback(
     async (tx: Transaction) => {
@@ -84,9 +93,17 @@ export function useNullmeet() {
       if (!teeConn) throw new Error("TEE connection not established");
 
       tx.feePayer = publicKey;
-      tx.recentBlockhash = (
-        await teeConn.getLatestBlockhash()
-      ).blockhash;
+
+      // Use cached blockhash if fresh (< 30s old), otherwise fetch new one
+      const cached = cachedTeeBlockhashRef.current;
+      if (cached && Date.now() - cached.fetchedAt < 30_000) {
+        tx.recentBlockhash = cached.blockhash;
+        cachedTeeBlockhashRef.current = null;
+      } else {
+        tx.recentBlockhash = (
+          await teeConn.getLatestBlockhash()
+        ).blockhash;
+      }
 
       const signed = await signTransaction(tx);
       const txHash = await sendAndConfirmRawTransaction(
@@ -441,6 +458,7 @@ export function useNullmeet() {
     setupMeetingPermission,
     joinAndSetupGuest,
     authenticateTee,
+    prefetchTeeBlockhash,
     submitSlotsTee,
     computeResultTee,
     fetchMeetingAccount,
