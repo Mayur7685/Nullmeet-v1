@@ -3,6 +3,7 @@ import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
+
 export const metadata: Metadata = {
   title: "Nullmeet — Private Meeting Scheduler",
   description:

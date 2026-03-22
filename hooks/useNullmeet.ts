@@ -55,6 +55,40 @@ export function useNullmeet() {
     return new Program(idl as Idl, provider);
   }, [publicKey, signTransaction, signAllTransactions, connection]);
 
+  // Helper: confirm tx with retry polling (handles 30s timeout)
+  const confirmWithRetry = useCallback(
+    async (conn: Connection, txHash: string, maxRetries = 3) => {
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const result = await conn.getSignatureStatus(txHash);
+          if (
+            result?.value?.confirmationStatus === "confirmed" ||
+            result?.value?.confirmationStatus === "finalized"
+          ) {
+            return txHash;
+          }
+          if (result?.value?.err) {
+            throw new Error(`Transaction failed: ${JSON.stringify(result.value.err)}`);
+          }
+        } catch {
+          // Status check failed, keep polling
+        }
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+      const final = await conn.getSignatureStatus(txHash);
+      if (
+        final?.value?.confirmationStatus === "confirmed" ||
+        final?.value?.confirmationStatus === "finalized"
+      ) {
+        return txHash;
+      }
+      throw new Error(
+        `Transaction not confirmed after retries. It may still succeed. Signature: ${txHash}`
+      );
+    },
+    []
+  );
+
   // Helper: sign and send a transaction on devnet
   const signAndSend = useCallback(
     async (tx: Transaction) => {
@@ -70,10 +104,19 @@ export function useNullmeet() {
       const txHash = await connection.sendRawTransaction(signed.serialize(), {
         skipPreflight: true,
       });
-      await connection.confirmTransaction(txHash, "confirmed");
+      try {
+        await connection.confirmTransaction(txHash, "confirmed");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("was not confirmed")) {
+          await confirmWithRetry(connection, txHash);
+        } else {
+          throw err;
+        }
+      }
       return txHash;
     },
-    [publicKey, signTransaction, connection]
+    [publicKey, signTransaction, connection, confirmWithRetry]
   );
 
   // Prefetch TEE blockhash so wallet popup appears instantly
@@ -106,14 +149,23 @@ export function useNullmeet() {
       }
 
       const signed = await signTransaction(tx);
-      const txHash = await sendAndConfirmRawTransaction(
-        teeConn,
-        signed.serialize(),
-        { skipPreflight: true, commitment: "confirmed" }
-      );
-      return txHash;
+      try {
+        const txHash = await sendAndConfirmRawTransaction(
+          teeConn,
+          signed.serialize(),
+          { skipPreflight: true, commitment: "confirmed" }
+        );
+        return txHash;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        const sigMatch = msg.match(/Check signature (\w+)/);
+        if (msg.includes("was not confirmed") && sigMatch) {
+          return await confirmWithRetry(teeConn, sigMatch[1]);
+        }
+        throw err;
+      }
     },
-    [publicKey, signTransaction]
+    [publicKey, signTransaction, confirmWithRetry]
   );
 
   // Host: create meeting + permissions + delegation in ONE transaction

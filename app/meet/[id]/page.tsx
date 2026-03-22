@@ -45,10 +45,42 @@ export default function MeetingPage() {
   } = useNullmeet();
 
   const [status, setStatus] = useState("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
   const [computeTxHash, setComputeTxHash] = useState<string | null>(null);
   const [meetingAccount, setMeetingAccount] = useState<string | null>(null);
   const initRef = useRef(false);
   const delegatingRef = useRef(false);
+  const submittingRef = useRef(false);
+  const computingRef = useRef(false);
+
+  const isUserRejection = (err: unknown): boolean => {
+    const msg = err instanceof Error ? err.message : String(err);
+    return (
+      msg.includes("User rejected") ||
+      msg.includes("user rejected") ||
+      msg.includes("User denied") ||
+      msg.includes("cancelled") ||
+      msg.includes("canceled") ||
+      msg.includes("Transaction was not confirmed")
+    );
+  };
+
+  const handleError = (err: unknown, retry: () => void) => {
+    console.error("Transaction error:", err);
+    const msg = err instanceof Error ? err.message : "Transaction failed";
+    if (isUserRejection(err)) {
+      setErrorMsg("Transaction cancelled. Please try again.");
+    } else {
+      setErrorMsg(msg);
+    }
+    setRetryAction(() => retry);
+  };
+
+  const clearError = () => {
+    setErrorMsg(null);
+    setRetryAction(null);
+  };
 
   // HOST: Create meeting + setup TEE in one transaction (1 popup)
   // GUEST: Join meeting + setup TEE in one transaction (1 popup)
@@ -58,6 +90,7 @@ export default function MeetingPage() {
 
     const init = async () => {
       initRef.current = true;
+      clearError();
       try {
         if (isJoining) {
           setStatus("Joining meeting & setting up TEE...");
@@ -80,11 +113,11 @@ export default function MeetingPage() {
           setStatus("");
         }
       } catch (err) {
-        console.error("Failed to init meeting:", err);
-        setStatus(
-          `Error: ${err instanceof Error ? err.message : "Transaction failed"}`
-        );
-        initRef.current = false;
+        setStatus("");
+        handleError(err, () => {
+          initRef.current = false;
+          init();
+        });
       }
     };
 
@@ -99,6 +132,7 @@ export default function MeetingPage() {
 
     const setupMeetingPerm = async () => {
       delegatingRef.current = true;
+      clearError();
       try {
         setStep("delegating");
         setStatus("Guest joined! Approve the transaction to set up the private enclave.");
@@ -106,11 +140,11 @@ export default function MeetingPage() {
         setStatus("");
         setStep("select-slots");
       } catch (err) {
-        console.error("Meeting permission setup failed:", err);
-        setStatus(
-          `Error: ${err instanceof Error ? err.message : "Failed"}`
-        );
-        delegatingRef.current = false;
+        setStatus("");
+        handleError(err, () => {
+          delegatingRef.current = false;
+          setupMeetingPerm();
+        });
       }
     };
 
@@ -125,6 +159,9 @@ export default function MeetingPage() {
   }, [step, prefetchTeeBlockhash]);
 
   const handleSubmitSlots = async (slots: number[]) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    clearError();
     try {
       setStep("submitting");
       setStatus("Submitting slots to TEE enclave...");
@@ -140,15 +177,17 @@ export default function MeetingPage() {
         setStatus("");
       }
     } catch (err) {
-      console.error("Failed to submit slots:", err);
-      setStatus(
-        `Error: ${err instanceof Error ? err.message : "Transaction failed"}`
-      );
+      setStatus("");
       setStep("select-slots");
+      submittingRef.current = false;
+      handleError(err, () => handleSubmitSlots(slots));
     }
   };
 
   const handleComputeResult = async () => {
+    if (computingRef.current) return;
+    computingRef.current = true;
+    clearError();
     try {
       setStep("computing");
       setStatus("Computing result inside TEE enclave...");
@@ -160,10 +199,10 @@ export default function MeetingPage() {
       broadcastResult(res.slot, res.score, res.valid);
       setStep("result");
     } catch (err) {
-      console.error("Failed to compute result:", err);
-      setStatus(
-        `Error: ${err instanceof Error ? err.message : "Failed to compute"}`
-      );
+      setStatus("");
+      setStep("waiting");
+      computingRef.current = false;
+      handleError(err, handleComputeResult);
     }
   };
 
@@ -213,6 +252,24 @@ export default function MeetingPage() {
             }
           )}
         </div>
+
+        {/* Error banner with retry */}
+        {errorMsg && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-center space-y-3">
+            <p className="text-[var(--error)] text-sm">{errorMsg}</p>
+            {retryAction && (
+              <button
+                onClick={() => {
+                  clearError();
+                  retryAction();
+                }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white text-sm font-medium rounded-lg transition-all cursor-pointer"
+              >
+                Try Again
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Content based on step */}
         {step === "lobby" && (

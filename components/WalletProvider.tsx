@@ -7,11 +7,12 @@ import {
 } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
+import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 const RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
+  process.env.NEXT_PUBLIC_SOLANA_RPC || clusterApiUrl("devnet");
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
@@ -24,9 +25,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <ConnectionProvider endpoint={RPC_URL}>
       <SolanaWalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          {mounted ? children : null}
-        </WalletModalProvider>
+        <WalletModalProvider>{mounted ? children : null}</WalletModalProvider>
       </SolanaWalletProvider>
     </ConnectionProvider>
   );
